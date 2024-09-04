@@ -24,58 +24,61 @@
     </style>
 </head>
 <body>
-    <iframe id="embedPlayer" src="" allowfullscreen></iframe>
+    <iframe id="embedPlayer" src="" allowfullscreen sandbox="allow-scripts allow-same-origin"></iframe>
 
     <script>
-        // Function to get the URL parameter value by name
         function getQueryParameter(param) {
             const urlParams = new URLSearchParams(window.location.search);
             return urlParams.get(param);
         }
 
-        // Fetch the embed URL from the query string
         const embedUrl = getQueryParameter('url');
 
         if (embedUrl) {
-            // Sanitize the URL to ensure it's a valid and secure URL
             const sanitizedUrl = embedUrl.startsWith('https://') ? embedUrl : '';
 
             if (sanitizedUrl) {
                 const iframe = document.getElementById('embedPlayer');
-                
-                // Load the iframe source with a small delay to prevent immediate redirections
                 setTimeout(() => {
                     iframe.src = sanitizedUrl;
                 }, 500);
 
-                // Block common redirection techniques
                 iframe.onload = function () {
                     try {
                         const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
 
-                        // Remove scripts and other elements that may cause redirection
+                        // Remove scripts
                         const scripts = iframeDoc.getElementsByTagName('script');
                         while (scripts.length) {
                             scripts[0].parentNode.removeChild(scripts[0]);
                         }
 
-                        // Example of removing anchor tags or other elements that may trigger redirects
+                        // Remove inline event handlers (like onclick)
+                        const elements = iframeDoc.querySelectorAll('*[onclick], *[onmouseover], *[onload], *[onfocus]');
+                        elements.forEach(el => {
+                            el.removeAttribute('onclick');
+                            el.removeAttribute('onmouseover');
+                            el.removeAttribute('onload');
+                            el.removeAttribute('onfocus');
+                        });
+
+                        // Remove anchor tags that cause redirects
                         const anchors = iframeDoc.getElementsByTagName('a');
                         for (let i = 0; i < anchors.length; i++) {
                             anchors[i].removeAttribute('href');
                         }
 
-                        // Optionally, add more selectors to remove elements that cause redirections
-                        const redirectSelectors = [
-                            'iframe',   // nested iframes
-                            'a[target="_blank"]',
-                            '[onclick]',
-                            '[onmouseover]'
-                        ];
-
-                        redirectSelectors.forEach(selector => {
-                            const elements = iframeDoc.querySelectorAll(selector);
-                            elements.forEach(el => el.remove());
+                        // Optionally decode Base64 content and remove unwanted elements
+                        const base64Elements = iframeDoc.querySelectorAll('script, *[data-base64]');
+                        base64Elements.forEach(el => {
+                            try {
+                                const decodedContent = atob(el.textContent || el.getAttribute('data-base64'));
+                                if (decodedContent.includes('window.dataLayer') || decodedContent.includes('gtag')) {
+                                    el.parentNode.removeChild(el);
+                                }
+                            } catch (e) {
+                                console.error('Error decoding Base64 content:', e);
+                            }
                         });
                     } catch (e) {
                         console.error('Error removing redirections:', e);
